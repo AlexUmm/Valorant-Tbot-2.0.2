@@ -1,0 +1,13 @@
+Run these commands in cmd: 
+
+python -m pip install --upgrade pip
+
+pip install pywin32
+
+pip install numpy
+
+pip install dxcam
+
+pip install kivy
+
+pip install keyboard

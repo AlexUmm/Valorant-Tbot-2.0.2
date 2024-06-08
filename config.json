@@ -1,0 +1,8 @@
+{
+    "trigger_hotkey": "0x2",
+    "base_delay": 0.01,
+    "trigger_delay": 100,
+    "color_tolerance": 35,
+    "always_enabled": false,
+    "auto_counter_strafe": false
+}
