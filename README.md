@@ -32,3 +32,6 @@ Valorant TBot is a customizable triggerbot for Valorant, designed to help player
 
 - Python 3.12.3 is what I used. Havent tested with newer/older variants.
 - Required Python packages (listed in `requirements.txt`)
+
+### GUI 
+![GUI](https://i.imgur.com/w8yBkoe.gif)
