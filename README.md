@@ -28,7 +28,7 @@ Valorant TBot is a customizable triggerbot for Valorant, designed to help player
 - Then run the script: py main.py
 
 ### Should look like this:
-![CMD](https://imgur.com/SAKSriy) 
+![CMD1](https://imgur.com/SAKSriy) 
 
 ### Prerequisites
 
