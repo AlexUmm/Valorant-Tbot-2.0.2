@@ -15,7 +15,7 @@ Valorant TBot is a customizable triggerbot for Valorant, designed to help player
 
 ## Installation
 
-- Follow the steps in `requirements.txt` and in the video provided.
+- Follow the steps in `requirements.txt` and in the [Provided Video](https://streamable.com/ejcrsw).
 
 ### Prerequisites
 
