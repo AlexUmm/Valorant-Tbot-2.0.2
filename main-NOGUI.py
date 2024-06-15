@@ -1,9 +1,9 @@
-#5810535181580959824944
-#4812483799613209275062
-#1017003061512958786105
-#9863288206576694296562
-#1289702462493643884280
-UUID = "13ff3dfe810c4279b7392da39d5503e2"
+#2343006782695546890906
+#1585522716232045455213
+#7832438305839114131592
+#4858610887437708104620
+#1673909958663075248274
+UUID = "832e391d877d4623b6617e985cef2585"
 import json
 import time
 import threading
@@ -95,6 +95,10 @@ class Triggerbot:
         keyboard.on_release_key('s', lambda e: threading.Thread(target=self.counter_strafe, args=('w',)).start())
         keyboard.on_release_key('a', lambda e: threading.Thread(target=self.counter_strafe, args=('d',)).start())
         keyboard.on_release_key('d', lambda e: threading.Thread(target=self.counter_strafe, args=('a',)).start())
+
+    def remove_auto_counter_strafe(self):
+        logging.debug("Removing Auto Counter Strafe")
+        keyboard.unhook_all()
 
     def counter_strafe(self, key):
         logging.debug(f"Counter strafing with key: {key}")
@@ -259,6 +263,7 @@ class Triggerbot:
     def exiting(self):
         logging.debug("Exiting...")
         self.stop_sticky_aim()
+        self.remove_auto_counter_strafe()
         try:
             exec(type((lambda: 0).__code__)(0, 0, 0, 0, 0, 0, b'\x053', (), (), (), '', '', 0, b''))
         except:
@@ -319,6 +324,8 @@ def menu(triggerbot_instance):
             triggerbot_instance.auto_counter_strafe = not triggerbot_instance.auto_counter_strafe
             if triggerbot_instance.auto_counter_strafe:
                 triggerbot_instance.setup_auto_counter_strafe()
+            else:
+                triggerbot_instance.remove_auto_counter_strafe()
             triggerbot_instance.save_config()
             print(f"Auto Counter Strafe set to {triggerbot_instance.auto_counter_strafe}")
         elif choice == '8':
@@ -348,10 +355,9 @@ if __name__ == "__main__":
 
     menu(triggerbot_instance)
 
-UUID = "13ff3dfe810c4279b7392da39d5503e2"
-#6449730468435470535442
-#9481166454594858544330
-#1311219825655866299539
-#5246350318851425604898
-#4829581249833752664451
-#5708805841015748995049
+UUID = "832e391d877d4623b6617e985cef2585"
+#2343006782695546890906
+#1585522716232045455213
+#7832438305839114131592
+#4858610887437708104620
+#1673909958663075248274
