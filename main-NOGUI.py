@@ -1,10 +1,9 @@
-#3338864122148685114677
-#3400356653188072011271
-#6569706381654662347564
-#3545727212078145855842
-#5399236273830526556167
-#7740018640261550327060
-UUID = "28f4d5df07df42caa44431579ccca50d"
+#5810535181580959824944
+#4812483799613209275062
+#1017003061512958786105
+#9863288206576694296562
+#1289702462493643884280
+UUID = "8d4c9ccf79de4bf3ba7ef757bd516d7f"
 import json
 import time
 import threading
@@ -28,13 +27,15 @@ user32, kernel32, shcore = (
 shcore.SetProcessDpiAwareness(2)
 WIDTH, HEIGHT = [user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)]
 
-ZONE = 5
-GRAB_ZONE = (
-    int(WIDTH / 2 - ZONE),
-    int(HEIGHT / 2 - ZONE),
-    int(WIDTH / 2 + ZONE),
-    int(HEIGHT / 2 + ZONE),
-)
+def calculate_grab_zone(color_tolerance):
+    # Map color_tolerance (1-5) to ZONE (1-5)
+    ZONE = max(1, min(5, color_tolerance))
+    return (
+        int(WIDTH / 2 - ZONE),
+        int(HEIGHT / 2 - ZONE),
+        int(WIDTH / 2 + ZONE),
+        int(HEIGHT / 2 + ZONE),
+    )
 
 # Add/Remove hotkeys here!
 # Find virtual-key codes here: https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
@@ -55,6 +56,7 @@ class Triggerbot:
         self.paused = False
         self.initialized = False
         self.auto_counter_strafe = False
+        self.humanization = False
 
         # Set Outline Color Here
         # Colors I Use;
@@ -73,6 +75,13 @@ class Triggerbot:
         self.trigger_delay = self.config["trigger_delay"]
         self.base_delay = self.config["base_delay"]
         self.color_tolerance = self.config["color_tolerance"]
+        self.humanization = self.config.get("humanization", False)
+
+        self.update_grab_zone()
+
+    def update_grab_zone(self):
+        self.grab_zone = calculate_grab_zone(self.color_tolerance)
+        logging.debug(f"Updated GRAB_ZONE dimensions: {self.grab_zone}")
 
     def initialize(self):
         self.sct = dxcam.create(output_color='BGRA', output_idx=0)
@@ -102,9 +111,9 @@ class Triggerbot:
         if self.paused:
             return
         logging.debug("Grabbing screen...")
-        img = np.array(self.sct.grab(GRAB_ZONE))
+        img = np.array(self.sct.grab(self.grab_zone))
         while img.any() == None:
-            img = np.array(self.sct.grab(GRAB_ZONE))
+            img = np.array(self.sct.grab(self.grab_zone))
 
         pixels = img.reshape(-1, 4)
         logging.debug("Analyzing pixels...")
@@ -122,8 +131,15 @@ class Triggerbot:
             actual_delay = self.base_delay + self.base_delay * delay_percentage
             logging.debug(f"Sleeping for {actual_delay} seconds before shooting")
             time.sleep(actual_delay)
-            keyboard.press_and_release("k")
-            logging.debug("Shot fired!")
+            if self.humanization:
+                shots = np.random.randint(1, 5)
+                for _ in range(shots):
+                    keyboard.press_and_release("k")
+                    time.sleep(np.random.uniform(0.01, 0.05))
+                logging.debug(f"Shot fired {shots} times!")
+            else:
+                keyboard.press_and_release("k")
+                logging.debug("Shot fired!")
 
     def toggle(self):
         if self.paused:
@@ -182,6 +198,7 @@ class Triggerbot:
         data["base_delay"] = self.base_delay
         data["color_tolerance"] = self.color_tolerance
         data["auto_counter_strafe"] = self.auto_counter_strafe
+        data["humanization"] = self.humanization
         with open('config.json', 'w') as json_file:
             json.dump(data, json_file, indent=4)
 
@@ -202,10 +219,11 @@ def menu(triggerbot_instance):
         print("2. Set Hotkey")
         print("3. Set Trigger Delay")
         print("4. Set Base Delay")
-        print("5. Set Color Tolerance")
+        print("5. Set Color Tolerance (1-5)")
         print("6. Toggle Always Enabled")
         print("7. Toggle Auto Counter Strafe")
-        print("8. Exit")
+        print("8. Toggle Humanization")
+        print("9. Exit")
         choice = input("Enter your choice: ")
 
         if choice == '1':
@@ -229,10 +247,14 @@ def menu(triggerbot_instance):
             triggerbot_instance.save_config()
             print(f"Base delay set to {delay} s")
         elif choice == '5':
-            tolerance = int(input("Enter color tolerance: "))
-            triggerbot_instance.color_tolerance = tolerance
-            triggerbot_instance.save_config()
-            print(f"Color tolerance set to {tolerance}")
+            tolerance = int(input("Enter color tolerance (1-5): "))
+            if 1 <= tolerance <= 5:
+                triggerbot_instance.color_tolerance = tolerance
+                triggerbot_instance.update_grab_zone()
+                triggerbot_instance.save_config()
+                print(f"Color tolerance set to {tolerance}")
+            else:
+                print("Invalid color tolerance, please enter a value between 1 and 5")
         elif choice == '6':
             triggerbot_instance.always_enabled = not triggerbot_instance.always_enabled
             triggerbot_instance.save_config()
@@ -244,6 +266,10 @@ def menu(triggerbot_instance):
             triggerbot_instance.save_config()
             print(f"Auto Counter Strafe set to {triggerbot_instance.auto_counter_strafe}")
         elif choice == '8':
+            triggerbot_instance.humanization = not triggerbot_instance.humanization
+            triggerbot_instance.save_config()
+            print(f"Humanization set to {triggerbot_instance.humanization}")
+        elif choice == '9':
             triggerbot_instance.exit_program = True
             triggerbot_instance.exiting()
             break
@@ -258,10 +284,16 @@ if __name__ == "__main__":
 
     menu(triggerbot_instance)
 
-UUID = "28f4d5df07df42caa44431579ccca50d"
+UUID = "8d4c9ccf79de4bf3ba7ef757bd516d7f"
 #6449730468435470535442
 #9481166454594858544330
 #1311219825655866299539
 #5246350318851425604898
 #4829581249833752664451
 #5708805841015748995049
+
+#5810535181580959824944
+#4812483799613209275062
+#1017003061512958786105
+#9863288206576694296562
+#1289702462493643884280
