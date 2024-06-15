@@ -3,9 +3,10 @@ import re
 import json
 import time
 import random
+import os
 
-UUID_PATTERN = 'UUID = "([a-f0-9f-z]+)"'
-NUMBER_PATTERN = '#[a-f0-9f-z]+'
+UUID_PATTERN = r'UUID = "([a-f0-9]{32})"'
+NUMBER_PATTERN = r'#[a-f0-9]+'
 
 def random_number_string():
     return f"#{random.randint(1000000000000000000000, 9999999999999999999999)}"
@@ -27,15 +28,22 @@ def ensure_uuid_and_numbers_in_file(filename, num_lines=5):
                 f.write(new_content)
             print(f"Added new UUID and numbers to {filename}: {new_uuid}")
         else:
-            # Ensure random numbers at the beginning
-            if not all(re.search(NUMBER_PATTERN, line) for line in content.split('\n')[:num_lines]):
-                content = f'{number_lines}\n{content}'
-            # Ensure random numbers at the end
-            if not all(re.search(NUMBER_PATTERN, line) for line in content.split('\n')[-num_lines:]):
-                content = f'{content}\n{number_lines}'
+            content_lines = content.split('\n')
+            updated_content = []
 
+            # Ensure random numbers at the beginning
+            if not all(re.search(NUMBER_PATTERN, line) for line in content_lines[:num_lines]):
+                updated_content.append(number_lines)
+            
+            updated_content.extend(content_lines)
+
+            # Ensure random numbers at the end
+            if not all(re.search(NUMBER_PATTERN, line) for line in content_lines[-num_lines:]):
+                updated_content.append(number_lines)
+            
+            new_content = "\n".join(updated_content)
             with open(filename, "w") as f:
-                f.write(content)
+                f.write(new_content)
             print(f"Ensured UUID and numbers in {filename}")
     except Exception as e:
         print(f"Error ensuring UUID and numbers in {filename}: {e}")
@@ -50,14 +58,20 @@ def updateUUID_and_numbers_in_file(filename, new_uuid, num_lines=5):
 
         content_new = re.sub(UUID_PATTERN, new_uuid_str, content)
 
-        # Replace existing numbers or add new ones
-        content_new = re.sub(NUMBER_PATTERN, lambda match: random_number_string(), content_new)
         lines = content_new.split('\n')
+        updated_content = []
 
+        # Ensure random numbers at the beginning
         if not all(re.search(NUMBER_PATTERN, line) for line in lines[:num_lines]):
-            content_new = f'{number_lines}\n{content_new}'
+            updated_content.append(number_lines)
+
+        updated_content.extend(lines)
+
+        # Ensure random numbers at the end
         if not all(re.search(NUMBER_PATTERN, line) for line in lines[-num_lines:]):
-            content_new = f'{content_new}\n{number_lines}'
+            updated_content.append(number_lines)
+
+        content_new = "\n".join(updated_content)
 
         with open(filename, "w") as f:
             f.write(content_new)
@@ -117,9 +131,23 @@ def main():
     
     print("Completed updating all files.")
     time.sleep(2)
-
+    
+    print("Spoof complete! Would you like to run (1) main.py or (2) main-NOGUI.py?")
     while True:
-        user_input = input("Do you want to run the script again? (yes/no): ").strip().lower()
+        user_input = input("Enter the number of your choice or 'no' to skip: ").strip().lower()
+        if user_input == '1':
+            os.system('python main.py')
+            break
+        elif user_input == '2':
+            os.system('python main-NOGUI.py')
+            break
+        elif user_input in ['no', 'n']:
+            break
+        else:
+            print("Invalid input. Please enter '1' for main.py, '2' for main-NOGUI.py, or 'no' to skip.")
+    
+    while True:
+        user_input = input("Do you want to run the spoof again? (yes/no): ").strip().lower()
         if user_input in ['yes', 'y']:
             main()
             break
