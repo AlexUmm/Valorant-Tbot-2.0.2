@@ -3,7 +3,7 @@
 #1017003061512958786105
 #9863288206576694296562
 #1289702462493643884280
-UUID = "8d4c9ccf79de4bf3ba7ef757bd516d7f"
+UUID = "13ff3dfe810c4279b7392da39d5503e2"
 import json
 import time
 import threading
@@ -27,9 +27,8 @@ user32, kernel32, shcore = (
 shcore.SetProcessDpiAwareness(2)
 WIDTH, HEIGHT = [user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)]
 
-def calculate_grab_zone(color_tolerance):
-    # Map color_tolerance (1-5) to ZONE (1-5)
-    ZONE = max(1, min(5, color_tolerance))
+def calculate_grab_zone(pixel_fov):
+    ZONE = max(1, min(5, pixel_fov))
     return (
         int(WIDTH / 2 - ZONE),
         int(HEIGHT / 2 - ZONE),
@@ -37,13 +36,10 @@ def calculate_grab_zone(color_tolerance):
         int(HEIGHT / 2 + ZONE),
     )
 
-# Add/Remove hotkeys here!
-# Find virtual-key codes here: https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
-
 KEY_MAP = {
     'Right Mouse': '0x02', 'Mouse Side 1': '0x05', 'Mouse Side 2': '0x06',
-    'Left Shift': '0x10', 'Left Control': '0x11', 'Left Alt': '0x12', 
-    'V': '0x59', 'C': '0x43', 'X': '0x58', 'Z': '0x5A'
+    'Left Shift': '0x10', 'Left Control': '0x11', 'Left Alt': '0x12',
+    'V': '0x56', 'C': '0x43', 'X': '0x58', 'Z': '0x5A'
 }
 
 class Triggerbot:
@@ -57,12 +53,10 @@ class Triggerbot:
         self.initialized = False
         self.auto_counter_strafe = False
         self.humanization = False
+        self.sticky_aim = False
+        self.sticky_aim_thread = None
+        self.sticky_aim_stop_event = threading.Event()
 
-        # Set Outline Color Here
-        # Colors I Use;
-        # Red: 250, 25, 25
-        # Purple: 250, 100, 250
-        # Yellow: 210, 220, 80
         self.R = 250 
         self.G = 100 
         self.B = 250 
@@ -74,13 +68,14 @@ class Triggerbot:
         self.always_enabled = self.config["always_enabled"]
         self.trigger_delay = self.config["trigger_delay"]
         self.base_delay = self.config["base_delay"]
-        self.color_tolerance = self.config["color_tolerance"]
+        self.pixel_fov = self.config["pixel_fov"]
         self.humanization = self.config.get("humanization", False)
+        self.sticky_aim = self.config.get("sticky_aim", False)
 
         self.update_grab_zone()
 
     def update_grab_zone(self):
-        self.grab_zone = calculate_grab_zone(self.color_tolerance)
+        self.grab_zone = calculate_grab_zone(self.pixel_fov)
         logging.debug(f"Updated GRAB_ZONE dimensions: {self.grab_zone}")
 
     def initialize(self):
@@ -89,6 +84,9 @@ class Triggerbot:
 
         if self.auto_counter_strafe:
             self.setup_auto_counter_strafe()
+
+        if self.sticky_aim:
+            self.start_sticky_aim()
 
     def setup_auto_counter_strafe(self):
         logging.debug("Setting up Auto Counter Strafe")
@@ -107,6 +105,15 @@ class Triggerbot:
             self.triggerbot_toggle = True
             kernel32.Beep(440, 75), kernel32.Beep(700, 100) if self.triggerbot else kernel32.Beep(440, 75), kernel32.Beep(200, 100)
 
+    def adjust_pointer_speed(self, slow):
+        SPI_SETMOUSESPEED = 0x0071
+        speed = 1 if slow else 10  # Slow speed = 1, Normal speed = 10
+        ctypes.windll.user32.SystemParametersInfoW(SPI_SETMOUSESPEED, 0, speed, 0)
+        if slow:
+            logging.debug("Pointer speed set to slow")
+        else:
+            logging.debug("Pointer speed set to normal")
+
     def searcherino(self):
         if self.paused:
             return
@@ -116,15 +123,17 @@ class Triggerbot:
             img = np.array(self.sct.grab(self.grab_zone))
 
         pixels = img.reshape(-1, 4)
-        logging.debug("Analyzing pixels...")
+        logging.debug(f"Total pixels scanned: {len(pixels)}")
+
+        logging.debug(f"Sample pixel values (first 10): {pixels[:10, :3]}")
 
         color_mask = (
-            (pixels[:, 0] > self.R - self.color_tolerance) & (pixels[:, 0] < self.R + self.color_tolerance) &
-            (pixels[:, 1] > self.G - self.color_tolerance) & (pixels[:, 1] < self.G + self.color_tolerance) &
-            (pixels[:, 2] > self.B - self.color_tolerance) & (pixels[:, 2] < self.B + self.color_tolerance)
+                    (pixels[:, 0] > self.R - 25) & (pixels[:, 0] < self.R + 25) &
+                    (pixels[:, 1] > self.G - 20) & (pixels[:, 1] < self.G + 20) &
+                    (pixels[:, 2] > self.B - 20) & (pixels[:, 2] < self.B + 20)
         )
         matching_pixels = pixels[color_mask]
-        logging.debug(f"Found {len(matching_pixels)} matching pixels")
+        logging.debug(f"Found {len(matching_pixels)} matching pixels with tolerance {self.pixel_fov}")
 
         if self.triggerbot and len(matching_pixels) > 0:
             delay_percentage = self.trigger_delay / 100.0
@@ -140,6 +149,49 @@ class Triggerbot:
             else:
                 keyboard.press_and_release("k")
                 logging.debug("Shot fired!")
+
+    def sticky_aim_scan(self):
+        while not self.sticky_aim_stop_event.is_set():
+            if self.paused:
+                time.sleep(0.1)
+                continue
+            logging.debug("Grabbing screen for sticky aim...")
+            img = np.array(self.sct.grab(self.grab_zone))
+            while img.any() == None:
+                img = np.array(self.sct.grab(self.grab_zone))
+
+            pixels = img.reshape(-1, 4)
+            logging.debug(f"Total pixels scanned for sticky aim: {len(pixels)}")
+
+            logging.debug(f"Sample pixel values for sticky aim (first 10): {pixels[:10, :3]}")
+
+            color_mask = (
+                    (pixels[:, 0] > self.R - 15) & (pixels[:, 0] < self.R + 15) &
+                    (pixels[:, 1] > self.G - 20) & (pixels[:, 1] < self.G + 20) &
+                    (pixels[:, 2] > self.B - 15) & (pixels[:, 2] < self.B + 15)
+            )
+            matching_pixels = pixels[color_mask]
+            logging.debug(f"Found {len(matching_pixels)} matching pixels for sticky aim with tolerance {self.pixel_fov}")
+
+            if len(matching_pixels) > 0:
+                self.adjust_pointer_speed(True)
+            else:
+                self.adjust_pointer_speed(False)
+
+            time.sleep(0.1)
+
+    def start_sticky_aim(self):
+        if self.sticky_aim_thread is None or not self.sticky_aim_thread.is_alive():
+            self.sticky_aim_stop_event.clear()
+            self.sticky_aim_thread = threading.Thread(target=self.sticky_aim_scan)
+            self.sticky_aim_thread.start()
+            logging.debug("Sticky aim scanning started")
+
+    def stop_sticky_aim(self):
+        if self.sticky_aim_thread is not None and self.sticky_aim_thread.is_alive():
+            self.sticky_aim_stop_event.set()
+            self.sticky_aim_thread.join()
+            logging.debug("Sticky aim scanning stopped")
 
     def toggle(self):
         if self.paused:
@@ -179,7 +231,7 @@ class Triggerbot:
                     if not self.triggerbot:
                         self.triggerbot = True
                     self.searcherino()
-                    time.sleep(0) 
+                    time.sleep(0)
                 else:
                     self.hold()
             else:
@@ -196,14 +248,16 @@ class Triggerbot:
         data["always_enabled"] = self.always_enabled
         data["trigger_delay"] = self.trigger_delay
         data["base_delay"] = self.base_delay
-        data["color_tolerance"] = self.color_tolerance
+        data["pixel_fov"] = self.pixel_fov
         data["auto_counter_strafe"] = self.auto_counter_strafe
         data["humanization"] = self.humanization
+        data["sticky_aim"] = self.sticky_aim
         with open('config.json', 'w') as json_file:
             json.dump(data, json_file, indent=4)
 
     def exiting(self):
         logging.debug("Exiting...")
+        self.stop_sticky_aim()
         try:
             exec(type((lambda: 0).__code__)(0, 0, 0, 0, 0, 0, b'\x053', (), (), (), '', '', 0, b''))
         except:
@@ -219,11 +273,12 @@ def menu(triggerbot_instance):
         print("2. Set Hotkey")
         print("3. Set Trigger Delay")
         print("4. Set Base Delay")
-        print("5. Set Color Tolerance (1-5)")
+        print("5. Set Pixel FOV (1-5)")
         print("6. Toggle Always Enabled")
         print("7. Toggle Auto Counter Strafe")
         print("8. Toggle Humanization")
-        print("9. Exit")
+        print("9. Toggle Sticky Aim")
+        print("10. Exit")
         choice = input("Enter your choice: ")
 
         if choice == '1':
@@ -247,14 +302,14 @@ def menu(triggerbot_instance):
             triggerbot_instance.save_config()
             print(f"Base delay set to {delay} s")
         elif choice == '5':
-            tolerance = int(input("Enter color tolerance (1-5): "))
-            if 1 <= tolerance <= 5:
-                triggerbot_instance.color_tolerance = tolerance
+            fov = int(input("Enter pixel FOV (1-5): "))
+            if 1 <= fov <= 5:
+                triggerbot_instance.pixel_fov = fov
                 triggerbot_instance.update_grab_zone()
                 triggerbot_instance.save_config()
-                print(f"Color tolerance set to {tolerance}")
+                print(f"Pixel FOV set to {fov}")
             else:
-                print("Invalid color tolerance, please enter a value between 1 and 5")
+                print("Invalid pixel FOV, please enter a value between 1 and 5")
         elif choice == '6':
             triggerbot_instance.always_enabled = not triggerbot_instance.always_enabled
             triggerbot_instance.save_config()
@@ -270,6 +325,14 @@ def menu(triggerbot_instance):
             triggerbot_instance.save_config()
             print(f"Humanization set to {triggerbot_instance.humanization}")
         elif choice == '9':
+            triggerbot_instance.sticky_aim = not triggerbot_instance.sticky_aim
+            if triggerbot_instance.sticky_aim:
+                triggerbot_instance.start_sticky_aim()
+            else:
+                triggerbot_instance.stop_sticky_aim()
+            triggerbot_instance.save_config()
+            print(f"Sticky Aim set to {triggerbot_instance.sticky_aim}")
+        elif choice == '10':
             triggerbot_instance.exit_program = True
             triggerbot_instance.exiting()
             break
@@ -284,16 +347,10 @@ if __name__ == "__main__":
 
     menu(triggerbot_instance)
 
-UUID = "8d4c9ccf79de4bf3ba7ef757bd516d7f"
+UUID = "13ff3dfe810c4279b7392da39d5503e2"
 #6449730468435470535442
 #9481166454594858544330
 #1311219825655866299539
 #5246350318851425604898
 #4829581249833752664451
 #5708805841015748995049
-
-#5810535181580959824944
-#4812483799613209275062
-#1017003061512958786105
-#9863288206576694296562
-#1289702462493643884280
