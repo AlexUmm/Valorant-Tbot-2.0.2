@@ -43,3 +43,9 @@ Valorant TBot is a customizable triggerbot for Valorant, designed to help player
 
 @DonerBacker123 https://www.unknowncheats.me/forum/valorant/612762-fastest-python-valorant-triggerbot-fr.html
 @Somepro https://www.unknowncheats.me/forum/valorant/622597-fastest-python-valorant-triggerbot-fr-fr.html
+
+
+## UPDATE
+
+Can now run the script through spoof.py after spoofing the source!
+![SPOOF](https://i.imgur.com/EL4UqrX.gif)
