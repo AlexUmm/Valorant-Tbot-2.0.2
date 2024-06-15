@@ -12,6 +12,7 @@ import logging
 import sys
 import win32.win32api as win32api
 from ctypes import WinDLL
+import ctypes
 import numpy as np
 import dxcam
 import os
