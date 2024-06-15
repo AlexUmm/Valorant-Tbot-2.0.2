@@ -1,9 +1,9 @@
-#6326546717315909253330
-#2166660357127341633626
-#6488014487411744899085
-#3949901477929158671241
-#7064417708687056495045
-UUID = "8129a0a13f2b4d3781f6be5497299c25"
+#7058838634083181522829
+#6133973231399143428431
+#9878949508561529469839
+#7964531536164000166235
+#5893615132455524884713
+UUID = "286f7e5221e6480f96b143d64ca85058"
 import json
 import time
 import threading
@@ -33,6 +33,8 @@ from kivy.animation import Animation
 from kivy.uix.widget import Widget
 from datetime import datetime, timedelta
 
+import ctypes
+
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 user32, kernel32, shcore = (
@@ -44,9 +46,8 @@ user32, kernel32, shcore = (
 shcore.SetProcessDpiAwareness(2)
 WIDTH, HEIGHT = [user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)]
 
-def calculate_grab_zone(color_tolerance):
-    # Map color_tolerance (1-5) to ZONE (1-5)
-    ZONE = max(1, min(5, color_tolerance))
+def calculate_grab_zone(pixel_fov):
+    ZONE = max(1, min(5, pixel_fov))
     return (
         int(WIDTH / 2 - ZONE),
         int(HEIGHT / 2 - ZONE),
@@ -103,40 +104,41 @@ class SpotifyGUI(BoxLayout):
         self.triggerbot = triggerbot_instance
         self.orientation = 'vertical'
         self.padding = 20
-        self.spacing = 0
+        self.spacing = 10
 
         self.add_widget(Image(source=resource_path('jett.png'), size_hint=(1, .35), allow_stretch=True, keep_ratio=False))
 
-        top_options_layout = BoxLayout(orientation='horizontal', spacing=40, size_hint_y=None, height=60)
+        options_layout = GridLayout(cols=2, spacing=[90, 10], padding=[10, 10, 10, 10], size_hint_y=None, height=200)
 
         self.always_enabled_toggle = ToggleSwitch(
             text="Always Enabled",
             active=self.triggerbot.always_enabled,
             callback=self.toggle_always_enabled
         )
-        top_options_layout.add_widget(self.always_enabled_toggle)
-
-        top_options_layout.add_widget(Widget(size_hint_x=None, width=20))
+        options_layout.add_widget(self.always_enabled_toggle)
 
         self.auto_counter_strafe_toggle = ToggleSwitch(
             text="Auto Counter Strafe",
             active=self.triggerbot.auto_counter_strafe,
             callback=self.toggle_auto_counter_strafe
         )
-        top_options_layout.add_widget(self.auto_counter_strafe_toggle)
-
-        self.add_widget(top_options_layout)
-
-        humanization_layout = BoxLayout(orientation='horizontal', spacing=40, size_hint_y=None, height=60)
+        options_layout.add_widget(self.auto_counter_strafe_toggle)
 
         self.humanization_toggle = ToggleSwitch(
             text="Humanization",
             active=self.triggerbot.humanization,
             callback=self.toggle_humanization
         )
-        humanization_layout.add_widget(self.humanization_toggle)
+        options_layout.add_widget(self.humanization_toggle)
 
-        self.add_widget(humanization_layout)
+        self.sticky_aim_toggle = ToggleSwitch(
+            text="Sticky Aim (WIP)",
+            active=self.triggerbot.sticky_aim,
+            callback=self.toggle_sticky_aim
+        )
+        options_layout.add_widget(self.sticky_aim_toggle)
+
+        self.add_widget(options_layout)
 
         controls_layout = GridLayout(cols=2, spacing=20, size_hint=(1, 0.6))
 
@@ -154,24 +156,24 @@ class SpotifyGUI(BoxLayout):
         self.base_delay_slider.bind(value=self.update_base_delay)
         controls_layout.add_widget(self.create_label_slider("Base Delay:", self.base_delay_slider))
 
-        self.color_tolerance_label = Label(text=f"Color Tolerance: {self.triggerbot.color_tolerance}", color=(1, 1, 1, 1), halign='center', valign='middle')
-        self.color_tolerance_label.bind(size=self.color_tolerance_label.setter('text_size'))
-        controls_layout.add_widget(self.color_tolerance_label)
-        self.color_tolerance_slider = Slider(min=1, max=5, value=self.triggerbot.color_tolerance, step=1)
-        self.color_tolerance_slider.bind(value=self.update_color_tolerance)
-        controls_layout.add_widget(self.create_label_slider("Color Tolerance:", self.color_tolerance_slider))
+        self.pixel_fov_label = Label(text=f"Pixel FOV: {self.triggerbot.pixel_fov}", color=(1, 1, 1, 1), halign='center', valign='middle')
+        self.pixel_fov_label.bind(size=self.pixel_fov_label.setter('text_size'))
+        controls_layout.add_widget(self.pixel_fov_label)
+        self.pixel_fov_slider = Slider(min=1, max=5, value=self.triggerbot.pixel_fov, step=1)
+        self.pixel_fov_slider.bind(value=self.update_pixel_fov)
+        controls_layout.add_widget(self.create_label_slider("Pixel FOV:", self.pixel_fov_slider))
 
         self.add_widget(controls_layout)
 
-        self.triggerbot_btn = Button(text="Stop Triggerbot", size_hint=(1, 0.1), background_color=(0, 1, 0, 1))  # Dark green
+        self.triggerbot_btn = Button(text="Stop Triggerbot", size_hint=(1, 0.1), background_color=(0, 1, 0, 1))
         self.triggerbot_btn.bind(on_press=self.toggle_triggerbot)
         self.add_widget(self.triggerbot_btn)
 
-        self.change_hotkey_btn = Button(text="Change Hotkey", size_hint=(1, 0.1), background_color=(0.1, 0.1, 0.1, 1))  # Dark grey
+        self.change_hotkey_btn = Button(text="Change Hotkey", size_hint=(1, 0.1), background_color=(0.1, 0.1, 0.1, 1))
         self.change_hotkey_btn.bind(on_press=self.open_hotkey_popup)
         self.add_widget(self.change_hotkey_btn)
 
-        self.exit_btn = Button(text="Exit", size_hint=(1, 0.1), background_color=(0.1, 0.1, 0.1, 1))  # Dark grey
+        self.exit_btn = Button(text="Exit", size_hint=(1, 0.1), background_color=(0.1, 0.1, 0.1, 1))
         self.exit_btn.bind(on_press=self.exit_program)
         self.add_widget(self.exit_btn)
 
@@ -193,20 +195,20 @@ class SpotifyGUI(BoxLayout):
         self.base_delay_label.text = f"Base Delay (s): {self.triggerbot.base_delay:.2f}"
         self.triggerbot.save_config()
 
-    def update_color_tolerance(self, instance, value):
-        self.triggerbot.color_tolerance = int(value)
-        self.color_tolerance_label.text = f"Color Tolerance: {self.triggerbot.color_tolerance}"
-        self.triggerbot.update_grab_zone()  # Update the grab zone based on the new color tolerance
+    def update_pixel_fov(self, instance, value):
+        self.triggerbot.pixel_fov = int(value)
+        self.pixel_fov_label.text = f"Pixel FOV: {self.triggerbot.pixel_fov}"
+        self.triggerbot.update_grab_zone()
         self.triggerbot.save_config()
 
     def toggle_triggerbot(self, instance):
         self.triggerbot.paused = not self.triggerbot.paused
         if self.triggerbot.paused:
             self.triggerbot_btn.text = "Start Triggerbot"
-            self.triggerbot_btn.background_color = (1, 0, 0, 1)  # Dark red
+            self.triggerbot_btn.background_color = (1, 0, 0, 1)
         else:
             self.triggerbot_btn.text = "Stop Triggerbot"
-            self.triggerbot_btn.background_color = (0, 1, 0, 1)  # Dark green
+            self.triggerbot_btn.background_color = (0, 1, 0, 1)
 
     def toggle_always_enabled(self, value):
         self.triggerbot.always_enabled = value
@@ -222,6 +224,14 @@ class SpotifyGUI(BoxLayout):
 
     def toggle_humanization(self, value):
         self.triggerbot.humanization = value
+        self.triggerbot.save_config()
+
+    def toggle_sticky_aim(self, value):
+        self.triggerbot.sticky_aim = value
+        if value:
+            self.triggerbot.start_sticky_aim()
+        else:
+            self.triggerbot.stop_sticky_aim()
         self.triggerbot.save_config()
 
     def exit_program(self, instance):
@@ -253,7 +263,7 @@ class HotkeyPopup(ModalView):
         )
         layout.add_widget(self.hotkey_spinner)
 
-        self.submit_button = Button(text='Submit', background_color=(0.1, 0.1, 0.1, 1))  # Dark grey
+        self.submit_button = Button(text='Submit', background_color=(0.1, 0.1, 0.1, 1))
         self.submit_button.bind(on_press=self.change_hotkey)
         layout.add_widget(self.submit_button)
 
@@ -279,6 +289,9 @@ class triggerbot:
         self.initialized = False
         self.auto_counter_strafe = False
         self.humanization = False
+        self.sticky_aim = False
+        self.sticky_aim_thread = None
+        self.sticky_aim_stop_event = threading.Event()
 
         self.R = 250 
         self.G = 100 
@@ -291,13 +304,14 @@ class triggerbot:
         self.always_enabled = self.config["always_enabled"]
         self.trigger_delay = self.config["trigger_delay"]
         self.base_delay = self.config["base_delay"]
-        self.color_tolerance = self.config["color_tolerance"]
+        self.pixel_fov = self.config["pixel_fov"]
         self.humanization = self.config.get("humanization", False)
+        self.sticky_aim = self.config.get("sticky_aim", False)
 
         self.update_grab_zone()
 
     def update_grab_zone(self):
-        self.grab_zone = calculate_grab_zone(self.color_tolerance)
+        self.grab_zone = calculate_grab_zone(self.pixel_fov)
         logging.debug(f"Updated GRAB_ZONE dimensions: {self.grab_zone}")
 
     def initialize(self):
@@ -306,6 +320,9 @@ class triggerbot:
 
         if self.auto_counter_strafe:
             self.setup_auto_counter_strafe()
+
+        if self.sticky_aim:
+            self.start_sticky_aim()
 
     def setup_auto_counter_strafe(self):
         logging.debug("Setting up Auto Counter Strafe")
@@ -324,6 +341,15 @@ class triggerbot:
             self.triggerbot_toggle = True
             kernel32.Beep(440, 75), kernel32.Beep(700, 100) if self.triggerbot else kernel32.Beep(440, 75), kernel32.Beep(200, 100)
 
+    def adjust_pointer_speed(self, slow):
+        SPI_SETMOUSESPEED = 0x0071
+        speed = 1 if slow else 10  # Slow speed = 1, Normal speed = 10
+        ctypes.windll.user32.SystemParametersInfoW(SPI_SETMOUSESPEED, 0, speed, 0)
+        if slow:
+            logging.debug("Pointer speed set to slow")
+        else:
+            logging.debug("Pointer speed set to normal")
+
     def searcherino(self):
         if self.paused:
             return
@@ -335,16 +361,15 @@ class triggerbot:
         pixels = img.reshape(-1, 4)
         logging.debug(f"Total pixels scanned: {len(pixels)}")
 
-        # Debug: Show the RGB values of some sampled pixels
         logging.debug(f"Sample pixel values (first 10): {pixels[:10, :3]}")
 
         color_mask = (
-            (pixels[:, 0] > self.R - self.color_tolerance) & (pixels[:, 0] < self.R + self.color_tolerance) &
-            (pixels[:, 1] > self.G - self.color_tolerance) & (pixels[:, 1] < self.G + self.color_tolerance) &
-            (pixels[:, 2] > self.B - self.color_tolerance) & (pixels[:, 2] < self.B + self.color_tolerance)
+                    (pixels[:, 0] > self.R - 25) & (pixels[:, 0] < self.R + 25) &
+                    (pixels[:, 1] > self.G - 20) & (pixels[:, 1] < self.G + 20) &
+                    (pixels[:, 2] > self.B - 20) & (pixels[:, 2] < self.B + 20)
         )
         matching_pixels = pixels[color_mask]
-        logging.debug(f"Found {len(matching_pixels)} matching pixels with tolerance {self.color_tolerance}")
+        logging.debug(f"Found {len(matching_pixels)} matching pixels with tolerance {self.pixel_fov}")
 
         if self.triggerbot and len(matching_pixels) > 0:
             delay_percentage = self.trigger_delay / 100.0
@@ -360,6 +385,49 @@ class triggerbot:
             else:
                 keyboard.press_and_release("k")
                 logging.debug("Shot fired!")
+
+    def sticky_aim_scan(self):
+        while not self.sticky_aim_stop_event.is_set():
+            if self.paused:
+                time.sleep(0.1)
+                continue
+            logging.debug("Grabbing screen for sticky aim...")
+            img = np.array(self.sct.grab(self.grab_zone))
+            while img.any() == None:
+                img = np.array(self.sct.grab(self.grab_zone))
+
+            pixels = img.reshape(-1, 4)
+            logging.debug(f"Total pixels scanned for sticky aim: {len(pixels)}")
+
+            logging.debug(f"Sample pixel values for sticky aim (first 10): {pixels[:10, :3]}")
+
+            color_mask = (
+                    (pixels[:, 0] > self.R - 15) & (pixels[:, 0] < self.R + 15) &
+                    (pixels[:, 1] > self.G - 20) & (pixels[:, 1] < self.G + 20) &
+                    (pixels[:, 2] > self.B - 15) & (pixels[:, 2] < self.B + 15)
+            )
+            matching_pixels = pixels[color_mask]
+            logging.debug(f"Found {len(matching_pixels)} matching pixels for sticky aim with tolerance {self.pixel_fov}")
+
+            if len(matching_pixels) > 0:
+                self.adjust_pointer_speed(True)
+            else:
+                self.adjust_pointer_speed(False)
+
+            time.sleep(0.1)
+
+    def start_sticky_aim(self):
+        if self.sticky_aim_thread is None or not self.sticky_aim_thread.is_alive():
+            self.sticky_aim_stop_event.clear()
+            self.sticky_aim_thread = threading.Thread(target=self.sticky_aim_scan)
+            self.sticky_aim_thread.start()
+            logging.debug("Sticky aim scanning started")
+
+    def stop_sticky_aim(self):
+        if self.sticky_aim_thread is not None and self.sticky_aim_thread.is_alive():
+            self.sticky_aim_stop_event.set()
+            self.sticky_aim_thread.join()
+            logging.debug("Sticky aim scanning stopped")
 
     def toggle(self):
         if self.paused:
@@ -399,7 +467,7 @@ class triggerbot:
                     if not self.triggerbot:
                         self.triggerbot = True
                     self.searcherino()
-                    time.sleep(0) 
+                    time.sleep(0)
                 else:
                     self.hold()
             else:
@@ -416,14 +484,16 @@ class triggerbot:
         data["always_enabled"] = self.always_enabled
         data["trigger_delay"] = self.trigger_delay
         data["base_delay"] = self.base_delay
-        data["color_tolerance"] = self.color_tolerance
+        data["pixel_fov"] = self.pixel_fov
         data["auto_counter_strafe"] = self.auto_counter_strafe
         data["humanization"] = self.humanization
+        data["sticky_aim"] = self.sticky_aim
         with open('config.json', 'w') as json_file:
             json.dump(data, json_file, indent=4)
 
     def exiting(self):
         logging.debug("Exiting...")
+        self.stop_sticky_aim()
         try:
             exec(type((lambda: 0).__code__)(0, 0, 0, 0, 0, 0, b'\x053', (), (), (), '', '', 0, b''))
         except:
@@ -432,7 +502,7 @@ class triggerbot:
             except:
                 raise SystemExit
 
-class SpotifyApp(App): 
+class SpotifyApp(App):
     def __init__(self, triggerbot_instance, **kwargs):
         super().__init__(**kwargs)
         self.triggerbot = triggerbot_instance
@@ -446,15 +516,15 @@ class SpotifyApp(App):
         return SpotifyGUI(self.triggerbot)
 
 if __name__ == "__main__":
-    Window.size = (380, 570)
+    Window.size = (390, 690)
 
     triggerbot_instance = triggerbot()
     SpotifyApp(triggerbot_instance).run()
 
-UUID = "8129a0a13f2b4d3781f6be5497299c25"
+UUID = "286f7e5221e6480f96b143d64ca85058"
 
-#6326546717315909253330
-#2166660357127341633626
-#6488014487411744899085
-#3949901477929158671241
-#7064417708687056495045
+#7058838634083181522829
+#6133973231399143428431
+#9878949508561529469839
+#7964531536164000166235
+#5893615132455524884713
