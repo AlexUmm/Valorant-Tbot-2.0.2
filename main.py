@@ -1,9 +1,9 @@
-#These are all the dependencies for the script to run.
-#If you get any errors make sure you installed all the requirments in requirements.txt
-#https://www.unknowncheats.me/forum/index.php is where I found the original source.
-#https://www.unknowncheats.me/forum/valorant/622597-fastest-python-valorant-triggerbot-fr-fr.html
-#Then I added a gui and some tweeks and features of my own like Auto Counter Strafe!
-#Compiled by @DavidUmm (discord xahlicks)
+#6326546717315909253330
+#2166660357127341633626
+#6488014487411744899085
+#3949901477929158671241
+#7064417708687056495045
+UUID = "8129a0a13f2b4d3781f6be5497299c25"
 import json
 import time
 import threading
@@ -33,7 +33,6 @@ from kivy.animation import Animation
 from kivy.uix.widget import Widget
 from datetime import datetime, timedelta
 
-
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 user32, kernel32, shcore = (
@@ -45,13 +44,15 @@ user32, kernel32, shcore = (
 shcore.SetProcessDpiAwareness(2)
 WIDTH, HEIGHT = [user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)]
 
-ZONE = 5
-GRAB_ZONE = (
-    int(WIDTH / 2 - ZONE),
-    int(HEIGHT / 2 - ZONE),
-    int(WIDTH / 2 + ZONE),
-    int(HEIGHT / 2 + ZONE),
-)
+def calculate_grab_zone(color_tolerance):
+    # Map color_tolerance (1-5) to ZONE (1-5)
+    ZONE = max(1, min(5, color_tolerance))
+    return (
+        int(WIDTH / 2 - ZONE),
+        int(HEIGHT / 2 - ZONE),
+        int(WIDTH / 2 + ZONE),
+        int(HEIGHT / 2 + ZONE),
+    )
 
 def resource_path(relative_path):
     try:
@@ -60,15 +61,12 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-#Add/Remove hotkeys here!
-#Find virtual-key codes here: https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
-
 KEY_MAP = {
-    'Right Mouse' : '0x02', 'Mouse Side 1' : '0x05', 'Mouse Side 2' : '0x06',
-    'Left Shift' : '0x10', 'Left Control' : '0x11', 'Left Alt' : '0x12', 
-    'V' : '0x59', 'C' : '0x43', 'X' : '0x58', 'Z' : '0x5A'
+    'Right Mouse': '0x02', 'Mouse Side 1': '0x05', 'Mouse Side 2': '0x06',
+    'Left Shift': '0x10', 'Left Control': '0x11', 'Left Alt': '0x12',
+    'V': '0x56', 'C': '0x43', 'X': '0x58', 'Z': '0x5A'
 }
-#The GUI spam starts here...
+
 class ToggleSwitch(BoxLayout):
     def __init__(self, text, active, callback, **kwargs):
         super().__init__(**kwargs)
@@ -104,7 +102,7 @@ class SpotifyGUI(BoxLayout):
         super().__init__(**kwargs)
         self.triggerbot = triggerbot_instance
         self.orientation = 'vertical'
-        self.padding = 20  # 
+        self.padding = 20
         self.spacing = 0
 
         self.add_widget(Image(source=resource_path('jett.png'), size_hint=(1, .35), allow_stretch=True, keep_ratio=False))
@@ -127,8 +125,18 @@ class SpotifyGUI(BoxLayout):
         )
         top_options_layout.add_widget(self.auto_counter_strafe_toggle)
 
-        
         self.add_widget(top_options_layout)
+
+        humanization_layout = BoxLayout(orientation='horizontal', spacing=40, size_hint_y=None, height=60)
+
+        self.humanization_toggle = ToggleSwitch(
+            text="Humanization",
+            active=self.triggerbot.humanization,
+            callback=self.toggle_humanization
+        )
+        humanization_layout.add_widget(self.humanization_toggle)
+
+        self.add_widget(humanization_layout)
 
         controls_layout = GridLayout(cols=2, spacing=20, size_hint=(1, 0.6))
 
@@ -149,7 +157,7 @@ class SpotifyGUI(BoxLayout):
         self.color_tolerance_label = Label(text=f"Color Tolerance: {self.triggerbot.color_tolerance}", color=(1, 1, 1, 1), halign='center', valign='middle')
         self.color_tolerance_label.bind(size=self.color_tolerance_label.setter('text_size'))
         controls_layout.add_widget(self.color_tolerance_label)
-        self.color_tolerance_slider = Slider(min=10, max=100, value=self.triggerbot.color_tolerance, step=5)
+        self.color_tolerance_slider = Slider(min=1, max=5, value=self.triggerbot.color_tolerance, step=1)
         self.color_tolerance_slider.bind(value=self.update_color_tolerance)
         controls_layout.add_widget(self.create_label_slider("Color Tolerance:", self.color_tolerance_slider))
 
@@ -188,6 +196,7 @@ class SpotifyGUI(BoxLayout):
     def update_color_tolerance(self, instance, value):
         self.triggerbot.color_tolerance = int(value)
         self.color_tolerance_label.text = f"Color Tolerance: {self.triggerbot.color_tolerance}"
+        self.triggerbot.update_grab_zone()  # Update the grab zone based on the new color tolerance
         self.triggerbot.save_config()
 
     def toggle_triggerbot(self, instance):
@@ -197,7 +206,7 @@ class SpotifyGUI(BoxLayout):
             self.triggerbot_btn.background_color = (1, 0, 0, 1)  # Dark red
         else:
             self.triggerbot_btn.text = "Stop Triggerbot"
-            self.triggerbot_btn.background_color = (0, 1, .1, 1)  # Dark green
+            self.triggerbot_btn.background_color = (0, 1, 0, 1)  # Dark green
 
     def toggle_always_enabled(self, value):
         self.triggerbot.always_enabled = value
@@ -211,6 +220,10 @@ class SpotifyGUI(BoxLayout):
             keyboard.unhook_all()
         self.triggerbot.save_config()
 
+    def toggle_humanization(self, value):
+        self.triggerbot.humanization = value
+        self.triggerbot.save_config()
+
     def exit_program(self, instance):
         self.triggerbot.exit_program = True
         self.triggerbot.exiting()
@@ -218,7 +231,6 @@ class SpotifyGUI(BoxLayout):
     def open_hotkey_popup(self, instance):
         self.hotkey_popup = HotkeyPopup(self.triggerbot)
         self.hotkey_popup.open()
-
 
 class HotkeyPopup(ModalView):
     def __init__(self, triggerbot_instance, **kwargs):
@@ -266,12 +278,8 @@ class triggerbot:
         self.paused = False
         self.initialized = False
         self.auto_counter_strafe = False
+        self.humanization = False
 
-#Set Outline Color Here
-#Colors I Use;
-#Red: 250, 25, 25
-#Purple: 250, 100, 250
-#Yellow: 210, 220, 80
         self.R = 250 
         self.G = 100 
         self.B = 250 
@@ -284,6 +292,13 @@ class triggerbot:
         self.trigger_delay = self.config["trigger_delay"]
         self.base_delay = self.config["base_delay"]
         self.color_tolerance = self.config["color_tolerance"]
+        self.humanization = self.config.get("humanization", False)
+
+        self.update_grab_zone()
+
+    def update_grab_zone(self):
+        self.grab_zone = calculate_grab_zone(self.color_tolerance)
+        logging.debug(f"Updated GRAB_ZONE dimensions: {self.grab_zone}")
 
     def initialize(self):
         self.sct = dxcam.create(output_color='BGRA', output_idx=0)
@@ -313,12 +328,15 @@ class triggerbot:
         if self.paused:
             return
         logging.debug("Grabbing screen...")
-        img = np.array(self.sct.grab(GRAB_ZONE))
+        img = np.array(self.sct.grab(self.grab_zone))
         while img.any() == None:
-            img = np.array(self.sct.grab(GRAB_ZONE))
+            img = np.array(self.sct.grab(self.grab_zone))
 
         pixels = img.reshape(-1, 4)
-        logging.debug("Analyzing pixels...")
+        logging.debug(f"Total pixels scanned: {len(pixels)}")
+
+        # Debug: Show the RGB values of some sampled pixels
+        logging.debug(f"Sample pixel values (first 10): {pixels[:10, :3]}")
 
         color_mask = (
             (pixels[:, 0] > self.R - self.color_tolerance) & (pixels[:, 0] < self.R + self.color_tolerance) &
@@ -326,15 +344,22 @@ class triggerbot:
             (pixels[:, 2] > self.B - self.color_tolerance) & (pixels[:, 2] < self.B + self.color_tolerance)
         )
         matching_pixels = pixels[color_mask]
-        logging.debug(f"Found {len(matching_pixels)} matching pixels")
+        logging.debug(f"Found {len(matching_pixels)} matching pixels with tolerance {self.color_tolerance}")
 
         if self.triggerbot and len(matching_pixels) > 0:
             delay_percentage = self.trigger_delay / 100.0
             actual_delay = self.base_delay + self.base_delay * delay_percentage
             logging.debug(f"Sleeping for {actual_delay} seconds before shooting")
             time.sleep(actual_delay)
-            keyboard.press_and_release("k")
-            logging.debug("Shot fired!")
+            if self.humanization:
+                shots = np.random.randint(1, 5)
+                for _ in range(shots):
+                    keyboard.press_and_release("k")
+                    time.sleep(np.random.uniform(0.01, 0.05))
+                logging.debug(f"Shot fired {shots} times!")
+            else:
+                keyboard.press_and_release("k")
+                logging.debug("Shot fired!")
 
     def toggle(self):
         if self.paused:
@@ -366,8 +391,7 @@ class triggerbot:
             if keyboard.is_pressed("ctrl+shift+x"):
                 self.exit_program = True
                 self.exiting()
-#If when Auto Counter Strafe is enabled and cpu usages spikes
-#Just adjust the time.sleep values to .1
+
     def starterino(self):
         while not self.exit_program:
             if not self.paused:
@@ -394,6 +418,7 @@ class triggerbot:
         data["base_delay"] = self.base_delay
         data["color_tolerance"] = self.color_tolerance
         data["auto_counter_strafe"] = self.auto_counter_strafe
+        data["humanization"] = self.humanization
         with open('config.json', 'w') as json_file:
             json.dump(data, json_file, indent=4)
 
@@ -412,8 +437,6 @@ class SpotifyApp(App):
         super().__init__(**kwargs)
         self.triggerbot = triggerbot_instance
         self.title = "Spotify"
- 
-  # Set GUI Title "Spotify", you can use anything you want like "Valtracker.gg" etc..
 
     def build(self):
         self.triggerbot.initialize()
@@ -423,10 +446,15 @@ class SpotifyApp(App):
         return SpotifyGUI(self.triggerbot)
 
 if __name__ == "__main__":
-   
-    Window.size = (380, 570) 
- 
- # Adjust GUI Width and Hieght (380, 570) is default
+    Window.size = (380, 570)
 
     triggerbot_instance = triggerbot()
     SpotifyApp(triggerbot_instance).run()
+
+UUID = "8129a0a13f2b4d3781f6be5497299c25"
+
+#6326546717315909253330
+#2166660357127341633626
+#6488014487411744899085
+#3949901477929158671241
+#7064417708687056495045
